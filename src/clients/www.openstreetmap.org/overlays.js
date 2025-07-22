@@ -20,6 +20,70 @@ export function bindOverlaysShortcuts(context) {
     const osmLayer = context.layers().layer('osm');
     osmLayer.enabled(!osmLayer.enabled());
   });
+
+  keybinding.on(iD.uiCmd('⇧G'), function (d3_event) {
+    d3_event.stopImmediatePropagation();
+    d3_event.preventDefault();
+
+    var changeset = new iD.osmChangeset().update({ id: undefined });
+    var coreHistory = context.history();
+    var changes = coreHistory.changes(iD.actionDiscardTags(coreHistory.difference(), {}));
+    var jxon = changeset.osmChangeJXON(changes);
+
+    var gpx = convertJxonToGpx(jxon);
+
+    // Trigger client-side download
+    var blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    var url = URL.createObjectURL(blob);
+
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'changes.gpx';
+    document.body.appendChild(a);
+    a.click();
+
+    // Cleanup
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  });
+}
+
+function convertJxonToGpx(jxon) {
+  const fixedTimestamp = new Date().toISOString(); // or hardcoded like "2025-07-21T00:00:00Z"
+
+  const create = jxon.osmChange.create || {};
+  const nodes = Array.isArray(create.node) ? create.node : [];
+  const ways = Array.isArray(create.way) ? create.way : [];
+
+  if (ways.length === 0) throw new Error('No way defined in input.');
+
+  // Build node lookup by ID
+  const nodeMap = new Map(nodes.map((n) => [n['@id'], n]));
+
+  const trksegs = ways
+    .map((way) => {
+      const ndRefs = way.nd?.map((nd) => nd.keyAttributes.ref) || [];
+      const trkpts = ndRefs
+        .map((ref) => {
+          const node = nodeMap.get(ref);
+          if (!node) return null;
+          return `<trkpt lat="${node['@lat']}" lon="${node['@lon']}"><time>${fixedTimestamp}</time></trkpt>`;
+        })
+        .filter(Boolean)
+        .join('\n      ');
+      return `<trkseg>\n      ${trkpts}\n    </trkseg>`;
+    })
+    .join('\n    ');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="iD-change-export" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Created Ways</name>
+    ${trksegs}
+  </trk>
+</gpx>`;
 }
 
 async function reorderOverlaysHash(background, hashValue) {
@@ -41,8 +105,8 @@ async function reorderOverlaysHash(background, hashValue) {
   // Reorder Strava layers based on the predefined order
   const sortedStrava = stravaLayerIds.filter((id) => stravaInInput.includes(id));
 
-  // Combine: others first (non-Strava), then sorted Strava layers
-  const reordered = [...others, ...sortedStrava];
+  // Combine: sorted Strava layers then others last (non-Strava)
+  const reordered = [...sortedStrava, ...others];
 
   return reordered.join(',');
 }

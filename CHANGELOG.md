@@ -2,6 +2,11 @@
 
 ## Versions
 
+### `0.12.1` (2025-07-22)
+
+- Ensure the restore unsaved changes prompt appears after reload
+- Maintain non-Strava layers above Strava layers
+
 ### `0.12.0` (2025-05-23)
 
 - Preserve layer stacking order based on the popup configuration

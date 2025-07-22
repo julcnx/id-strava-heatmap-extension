@@ -39,7 +39,9 @@ export async function applyImagery(context, layerPresets, authenticated, version
   await adjustOverlaysOrder(background, defaultOverlaysHash, false);
 
   // redraw ui
-  await context.ui().restart();
+  if (!context.history().hasRestorableChanges()) {
+    await context.ui().restart();
+  }
 
   // ensure overlay shortcuts are re-binded
   bindOverlaysShortcuts(context);
