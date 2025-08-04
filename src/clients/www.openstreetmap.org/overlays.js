@@ -17,8 +17,11 @@ export function bindOverlaysShortcuts(context) {
   keybinding.on(iD.uiCmd('⇧W'), function (d3_event) {
     d3_event.stopImmediatePropagation();
     d3_event.preventDefault();
-    const osmLayer = context.layers().layer('osm');
-    osmLayer.enabled(!osmLayer.enabled());
+    const mode = context.mode();
+    if (!mode || !mode.id.startsWith('draw-')) {
+      const osmLayer = context.layers().layer('osm');
+      osmLayer.enabled(!osmLayer.enabled());
+    }
   });
 
   keybinding.on(iD.uiCmd('⇧G'), function (d3_event) {

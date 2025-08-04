@@ -2,6 +2,10 @@
 
 ## Versions
 
+### `0.12.2` (2025-08-04)
+
+- Fix crash when pressing Shift+W while drawing geometries
+
 ### `0.12.1` (2025-07-22)
 
 - Ensure the restore unsaved changes prompt appears after reload
