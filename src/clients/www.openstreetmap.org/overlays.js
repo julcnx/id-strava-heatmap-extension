@@ -56,28 +56,37 @@ export function bindOverlaysShortcuts(context) {
 function convertJxonToGpx(jxon) {
   const fixedTimestamp = new Date().toISOString(); // or hardcoded like "2025-07-21T00:00:00Z"
 
-  const create = jxon.osmChange.create || {};
-  const nodes = Array.isArray(create.node) ? create.node : [];
-  const ways = Array.isArray(create.way) ? create.way : [];
+  const graph = context.history().graph();
+  const { create, modify } = jxon.osmChange;
+  const nodes = (create.node || []).concat(modify.node || []);
 
-  if (ways.length === 0) throw new Error('No way defined in input.');
+  const ways = nodes.reduce((acc, node) => {
+    const id = `n${node['@id']}`;
+    const set = graph._parentWays[id];
+    if (set) {
+      set.forEach((wayId) => {
+        if (!acc.includes(wayId)) acc.push(wayId);
+      });
+    }
+    return acc;
+  }, []);
 
-  // Build node lookup by ID
-  const nodeMap = new Map(nodes.map((n) => [n['@id'], n]));
+  if (ways.length === 0) return;
 
   const trksegs = ways
-    .map((way) => {
-      const ndRefs = way.nd?.map((nd) => nd.keyAttributes.ref) || [];
-      const trkpts = ndRefs
-        .map((ref) => {
-          const node = nodeMap.get(ref);
-          if (!node) return null;
-          return `<trkpt lat="${node['@lat']}" lon="${node['@lon']}"><time>${fixedTimestamp}</time></trkpt>`;
-        })
-        .filter(Boolean)
-        .join('\n      ');
-      return `<trkseg>\n      ${trkpts}\n    </trkseg>`;
-    })
+    .reduce((acc, wayId) => {
+      const childNodes = graph._childNodes[wayId];
+      if (childNodes) {
+        const trkpts = childNodes
+          .map((node) => {
+            const [lon, lat] = node.loc;
+            return `<trkpt lat="${lat}" lon="${lon}"><time>${fixedTimestamp}</time></trkpt>`;
+          })
+          .join('\n      ');
+        acc.push(`<trkseg>\n      ${trkpts}\n    </trkseg>`);
+      }
+      return acc;
+    }, [])
     .join('\n    ');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
